@@ -1,4 +1,4 @@
-# AMQP Protocol using SpringBoot
+# AMQ Messaging using Artemis Core Protocol in SpringBoot
 Sample SpringBoot based application using Red Hat AMQ Spring Boot Starter.
 
 ## Configuration
