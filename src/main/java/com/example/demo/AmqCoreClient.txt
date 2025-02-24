@@ -1,0 +1,93 @@
+package com.example.demo;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.jms.annotation.EnableJms;
+import org.springframework.jms.annotation.JmsListener;
+import org.springframework.jms.core.JmsTemplate;
+import org.springframework.jms.core.MessagePostProcessor;
+
+import javax.jms.*;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+@SpringBootApplication
+@EnableJms
+public class AmqCoreClient implements CommandLineRunner {
+    @Autowired
+    private JmsTemplate jmsTemplate;
+
+    @Autowired
+    private ConfigurableApplicationContext applicationContext;
+
+    private static DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+    private static Date date = new Date();
+    private static String QueueName = "test-queue";
+    private static String HDR_DUPLICATE_DETECTION_ID = "_AMQ_DUPL_ID";
+
+    public static void main(String[] args) {
+        SpringApplication.run(AmqCoreClient.class, args);
+    }
+
+    @Override
+    public void run(String... strings) throws Exception {
+        sendMessage();
+    }
+
+    public void sendMessage() {
+        int messageCount = 0;
+
+        ExecutorService executor = Executors.newFixedThreadPool(10); // Adjust the thread pool size as needed
+        while (messageCount < 40000) {
+            int finalMessageCount = messageCount;
+            executor.submit(() -> {
+                String msg = UUID.randomUUID().toString();
+                System.out.println(String.format("%s Sending %d", dateFormat.format(date), finalMessageCount));
+                this.jmsTemplate.convertAndSend(QueueName, finalMessageCount, new MessagePostProcessor() {
+                    @Override
+                    public Message postProcessMessage(Message message) throws JMSException {
+                        message.setStringProperty(HDR_DUPLICATE_DETECTION_ID, msg);
+                        return message;
+                    }
+                });
+            });
+            messageCount++;
+        }
+        executor.shutdown();
+        applicationContext.close();
+    }
+
+    /*public void sendMessage() {
+        while (true) {
+            new Thread(() -> {
+                String msg = UUID.randomUUID().toString();
+                System.out.println(String.format("%s Sending %s", dateFormat.format(date), msg));
+                this.jmsTemplate.convertAndSend(QueueName, msg, new MessagePostProcessor() {
+                    @Override
+                    public Message postProcessMessage(Message message) throws JMSException {
+                        message.setStringProperty(HDR_DUPLICATE_DETECTION_ID, msg);
+                        return message;
+                    }
+                });
+                System.out.printf("\n%s Received Message %s \n",dateFormat.format(date), this.jmsTemplate.receiveAndConvert(QueueName));
+            }).start();
+
+        }
+    }*/
+
+/*    @JmsListener(destination = "test-queue")
+    public void receiveMessage(Message message) {
+        try {
+            System.err.println(String.format("%s Received %s: Header %s", dateFormat.format(date), message.getBody(String.class), message.getStringProperty(HDR_DUPLICATE_DETECTION_ID)));
+        } catch (JMSException e) {
+            throw new RuntimeException(e);
+        }
+    }*/
+}
